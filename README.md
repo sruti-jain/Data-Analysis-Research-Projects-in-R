@@ -19,11 +19,12 @@ Distinguishes questions relating to spatial memory versus other memory types. Al
 
 
 ## Project 2 - Bama Politics Dataset (Education versus Politics) 
-
+1. Cleaned the existing data to differentiate between the design variables and qualitative variables needed for CA analysis in the survey that mainly explained max variance for our hypothesis question: How education is related to the choice of political parties? 
+2. Analyzed the Dataset to implement CA and bootstraping techniques to explain the existing data on two principal components which were significant after the bootstraping results. 
+3. Plotted the Biplot (Symmetric & Unsymmetric) and bootstrap ratio graphs to gain more insights.
 
 ### Conclusion
 When we interpret the Biplot and correlation circle plot together, the CA and bootstrap results revealed:
 
 1. Component 1: The latent structure of the Bama Politics data as revealed by CA indicated that the first component characterized Republican & Independent versus Democrat. Also it indicates that educated people prefer Republican & Independent over Democrat.
 2. Component 2: Mainly distinguishes people supporting the Republican versus Independent & Democrats.
-
