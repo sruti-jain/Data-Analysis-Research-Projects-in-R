@@ -1,0 +1,282 @@
+---
+title: "The Survey of autobiographical memory - Inference PCA"
+author: "Sruti Jain"
+date: "September 22, 2017"
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+##The objectives of this markdown book is running Inferential PCA analysis of SAM Dataset
+
+```{r setup}
+rm(list = ls())
+library(ExPosition)
+library(ggplot2)
+library(factoextra)
+library(InPosition)
+library(corrplot)
+suppressMessages(library(ExPosition))
+```
+
+## Method: PCA
+
+Principle Component Analysis: A statistical technique used to examine the interrelations among a set of variables in order to identify the underlying structure of those variables. Also called factor analysis Where regression determines a line of best fit to a data
+set, factor analysis determines several orthogonal lines of best fit to the data set. It is a non-parametric analysis and the answer is unique and independent of any hypothesis about data distribution. 
+
+Principal component analysis (PCA) is a statistical procedure that uses an orthogonal transformation to convert a set of observations of possibly correlated variables into a set of values of linearly uncorrelated variables called principal components (or sometimes, principal modes of variation). The number of principal components is less than or equal to the smaller of the number of original variables or the number of observations. This transformation is defined in such a way that the first principal component has the largest possible variance (that is, accounts for as much of the variability in the data as possible), and each succeeding component in turn has the highest variance possible under the constraint that it is orthogonal to the preceding components. The resulting vectors are an uncorrelated orthogonal basis set. PCA is sensitive to the relative scaling of the original variables.
+
+These two properties can be regarded as weaknesses as well as strengths.
+1. Since the technique is non-parametric, no prior knowledge can be incorporated.
+2. PCA data reduction often incurs a loss of information.
+
+## Bootstrapping & Permutation
+
+Bootstrapping: In statistics, bootstrapping is any test or metric that relies on random sampling with replacement. Bootstrapping allows assigning measures of accuracy (defined in terms of bias, variance, confidence intervals, prediction error or some other such measure) to sample estimates.This technique allows estimation of the sampling distribution of almost any statistic using random sampling methods. Generally, it falls in the broader class of resampling methods.
+
+Permutation: In simple terms, permutation is all the possible arrangements of a collection of things, where the order is important. In statistics, it is defined as the notion that relates to the act of arranging all the members of a set into some sequence or order, or if the set is already ordered, rearranging (reordering) its elements, a process called permuting.
+
+## Data set: SAM dataset
+The Survey of Autobiographical memory (SAM) was designed to access trait mnemonics of naturalistic episodic autobiographical, semantic, spatial memory & future thinking. 
+It records the data taken from a sample of 153 people (rows) to measure mnemonic abilities using 31 variables. 
+There are two nominal variables (Active, Sex) & one factor variable (MemoryGroup). The rest of the variables are all integer with two(ID & Age) being a ratio-scale and all others interval variables. 
+
+*Loading the dataset & running descriptive/exploratory analysis*
+
+```{r data_set}
+SAMdata <- read.csv("SAMdata.csv")
+head(SAMdata)
+str(SAMdata)
+```
+
+For more info, try: "summary(SAMdata)"
+
+## Perprocessing the dataset & creating design variables for our analysis
+In this analysis, we run PCA on the SAM variables that start from the 6th column. Meanwhile, keep the first column which stores the ID as your rownames.
+
+```{r analyze, echo = TRUE}
+## leaving the mystery group out
+SAMdata <- SAMdata[which(SAMdata$Active == TRUE),]
+ModSamData <- SAMdata[,c(6:ncol(SAMdata))]
+rownames(ModSamData) <- SAMdata[,1]
+## check your data
+head(ModSamData)
+
+### The 2nd columns describes the groups. So, we use it to create a design matrix. When you only have one column, R sees it as a vector. To use *makeNominalData*, you need to turn it into a matrix with one column with *as.matrix*. 
+Des.mat <- makeNominalData(as.matrix(SAMdata[,2]))
+
+## refine the column names
+colnames(Des.mat) <- c("High", "Norm") # give column names 
+rownames(Des.mat) <- SAMdata[,1] # set row names as participants' IDs
+## check the design
+head(Des.mat)
+
+## Correlation heatmap
+corrplot(cor(ModSamData), method="ellipse")
+```
+
+Correlation heatmap plot indicates that variables within the questionaire that are testing for a particular memory type are strongly correlated to one another. That is to say that all variable testing episodic memory are highly correlated & this is same for varaibles referring to all memory groups. 
+Also negative correlation was aobserved between variables testing for future & semantic memory types. 
+
+```{r, echo = TRUE}
+
+## Then, we can move on to Inferential PCA
+res_pca <- epPCA.inference.battery(ModSamData, center = TRUE, scale = FALSE, graphs = TRUE, DESIGN = Des.mat, make_design_nominal = FALSE, test.iters = 1000)
+
+
+```
+
+### Scree Plot
+A scree plot shows the eigenvalues on the y-axis and the number of factors on the x-axis. The number of components is min(nrow(DATA), ncol(DATA)). Here, 26 columns gives max of 26 components. The scree plot is used to determine how many of the components should be interpreted. 
+
+```{r plotScree}
+# --------------------------------------------------------------------
+# Creating a function to plot the scree
+# ev: the eigen values to plot. no default
+# max.ev the max eigen value
+#        needed because ExPosition does not return all ev
+#        but only the requested one. but return all tau
+#        so if max.ev is specified, it is used to recompute
+#        all eigenvalues
+# p.ep: the probabilities associated to the ev
+# alpha: threshold for significance. Default = .05
+# col.ns  = color for ns ev. Default is Green
+# col.sig = color for significant ev. Default is Violet
+PlotScree <- function(ev,p.ev=NULL,max.vp=NULL, alpha=.05,
+                      col.ns = '#006D2C',col.sig='red',
+                      title = "Explained Variance per Dimension"
+){
+  # percentage of inertia
+  val.tau = (100*ev/sum(ev))
+  Top.y = ceiling(max(val.tau)*.1)*10
+  # if ev is already a percentage convert it back
+  if (!is.null(max.vp)){ev = ev*(max.vp/ev[1])}
+  #
+  par(mar=c(5,6,4,4))
+  # plot.window(xlim = c(0, length(val.tau)+5),
+  #         ylim = c(0,Top.y),asp = .6)
+  plot(x = seq(1,length(val.tau)),y=val.tau,xlab='Dimensions',
+       ylab = 'Percentage of Explained Variance',
+       main = title,
+       type = 'l', col = col.ns, lwd= 1,
+       xlim = c(1, length(val.tau)),
+       ylim = c(0,Top.y)
+  )
+  points(x = seq(1,length(val.tau)),y=val.tau,
+         pch=16,  cex=1, col = col.ns, lwd= 2.5
+  )
+  if (!is.null(res_pca$Inference.Data$components$p.vals)){# plot the significant vp if exist
+    # Plot the significant factors
+    signi.vp = which(res_pca$Inference.Data$components$p.vals < alpha)
+    lines(x = seq(1,length(signi.vp)),y=val.tau[signi.vp],
+          type = 'l', col = col.sig, lwd= 1.5
+    )
+    points(x = seq(1,length(signi.vp)),y=val.tau[signi.vp],
+           pch=16,  cex=1.5, col = col.sig, lwd= 3.5)
+  } # end of plot significant vp
+  par(new = TRUE)
+  par(mar=c(5,6,4,4)+.5)
+  le.max.vp = Top.y*(ev[1]/val.tau[1])
+  plot(ev, ann=FALSE,axes=FALSE,type="n",#line=3,
+       ylim = c(0,le.max.vp))
+  mtext("Inertia Extracted by the Components",side=4,line=3)
+  axis(4)
+} # end of function PlotScree
+
+# --------------------------------------------------------------------
+```
+
+```{r pressure, echo= TRUE}
+# Calling the above function to plot the scree
+EigenValues <- res_pca$Fixed.Data$ExPosition.Data$eigs
+
+PlotScree(EigenValues)
+#PlotScree(EigenValues[-length(EigenValues)])
+```
+
+### Factor scores
+Factor scores are the coordinates of the observations on the components. The distances between them show which individuals are most similar. Factor scores can be color-coded to help interpret the components.
+
+* `prettyPlot` helps plot the factor scores. In order to print the result in an Rmd, `dev.new` needs to be `FALSE`.
+
+```{r factor scores}
+
+## Average memory score for every observation with respect to the components
+factor_score <- prettyPlot(data_matrix = res_pca$Fixed.Data$ExPosition.Data$fi,  
+                            dev.new=TRUE,
+                            main = "SAMData Row Factor Scores",
+                            x_axis = 1, y_axis = 2, 
+                            contributionCircles = FALSE, contributions = res_pca$Fixed.Data$ExPosition.Data$ci, 
+                            display_points = TRUE, pch = 21, cex = 1.2, col = res_pca$Fixed.Data$Plotting.Data$fi.col, 
+                            display_names = FALSE, 
+                            xlab = paste0("Component 1 Inertia: ", round(res_pca$Fixed.Data$ExPosition.Data$t[1],3), "%"),
+                            ylab = paste0("Component 2 Inertia: ", round(res_pca$Fixed.Data$ExPosition.Data$t[2],3), "%")
+                            )
+
+color <- unique(res_pca$Fixed.Data$Plotting.Data$fi.col)
+legend(x="topright", pch = 15, legend = colnames(Des.mat), col=color)
+```
+
+Component 1 mainly distinguishes people with high versus normal memory groups. Component 2 doesn't essentially show any difference. 
+
+### Loadings
+Loadings describe the similarity (angular distance) between the variables. Loadings show how the input variables relate to each other. Loadings also show which variables are important for (which components load on) a certain component.
+
+```{r echo=TRUE}
+## Plotting the similarity between the variables by analysing the cosine between them.
+fviz_pca_var(res_pca$Fixed.Data, col.var="cos2") +
+scale_color_gradient2(low="white", mid="blue", 
+                    high="red", midpoint=0.5) + theme_minimal()
+
+# Percentage Contribution of every variable towards each component
+fviz_contrib(res_pca$Fixed.Data, choice = "var", axes = 1)
+fviz_contrib(res_pca$Fixed.Data, choice = "var", axes = 2)
+
+col_name <- as.matrix(colnames(ModSamData))
+col_name <- strsplit(gsub("[^[:alpha:] ]", "", col_name), " +")
+color4col <- prettyGraphsColorSelection(ncol(ModSamData))
+agrey <- ggplot2::alpha("dimgray", .5)
+
+color4col[col_name[] == "F"] <- agrey
+color4col[col_name[] == "E"] <- "green2"
+color4col[col_name[] == "P"] <- "mediumblue"
+color4col[col_name[] == "S"] <- "plum"
+
+## Varimax rotation
+rot_load <- varimax(res_pca$Fixed.Data$ExPosition.Data$fj, TRUE, 1e-5)
+
+## Plotting the various variables with respect to the two primary components
+loading_plot <- prettyPlot(data_matrix = res_pca$Fixed.Data$ExPosition.Data$fj,  
+                            dev.new=FALSE,
+                            main = "SAMData Column Loadings",
+                            x_axis = 1, y_axis = 2, 
+                            contributionCircles = FALSE, contributions = res_pca$Fixed.Data$ExPosition.Data$cj, 
+                            display_points = TRUE, pch = 21, cex = 1.2, col = color4col, 
+                            display_names = TRUE,
+                            xlab = paste0("Component 1 Inertia: ", round(res_pca$Fixed.Data$ExPosition.Data$t[1],3), "%"),
+                            ylab = paste0("Component 2 Inertia: ", round(res_pca$Fixed.Data$ExPosition.Data$t[2],3), "%")
+                            )
+
+legend(x="topright", pch = 15, legend = c("Episodic", "Semantic", "Spatial", "Future"), col=c("green2", "plum", "mediumblue", agrey))
+
+loading_plot <- prettyPlot(data_matrix = rot_load$loadings,  
+                            dev.new=FALSE,
+                            main = "SAMData Column Loadings",
+                            x_axis = 1, y_axis = 2, 
+                            display_points = TRUE, pch = 21, cex = 1.2, col = color4col,
+                            xlab = paste0("Component 1 Inertia: ", round(res_pca$Fixed.Data$ExPosition.Data$t[1],3), "%"),
+                            ylab = paste0("Component 2 Inertia: ", round(res_pca$Fixed.Data$ExPosition.Data$t[2],3), "%")
+                            )
+
+legend(x="topright", pch = 15, legend = c("Episodic", "Semantic", "Spatial", "Future"), col=c("green2", "plum", "mediumblue", agrey))
+
+```
+
+1. Component 1: Seperates normal memory score versus high memory scores and all the varaibles test for the memory scores in positive terms.
+
+2. Component 2 is mainly composed of Spatial memory variable. People who are generally good at Spatial memory task have a poor future thinking ability as they both are orthogonal and negatively correlated. 
+
+
+
+### Bootstrap ratios
+Here we are going to plot the bootstrap ratios for component1 & component2 and also plotting the correlation circle
+
+```{r plot2}
+
+# This prints the Bootstrap for Component 1
+bootstrap_C1 <- prettyBars(res_pca$Inference.Data$fj.boots$tests$boot.ratios[,c(1,2)], axis = 1, threshold.line = TRUE,bg.lims = c(-res_pca$Inference.Data$fj.boots$tests$critical.value,res_pca$Inference.Data$fj.boots$tests$critical.value) )
+
+
+```
+```{r}
+
+# This prints the Bootstrap for Component 2
+bootstrap_C2 <- prettyBars(res_pca$Inference.Data$fj.boots$tests$boot.ratios[,c(1,2)], axis = 2, threshold.line = TRUE,bg.lims = c(-res_pca$Inference.Data$fj.boots$tests$critical.value,res_pca$Inference.Data$fj.boots$tests$critical.value) )
+
+```
+
+```{r}
+
+# For plotting Correlation Circle 
+corrplot <- correlationPlotter(ModSamData, res_pca$Fixed.Data$ExPosition.Data$fi, col = color4col)
+legend(x="topright", pch = 15, legend = c("Episodic", "Semantic", "Spatial", "Future"), col=c("green2", "plum", "mediumblue", agrey))
+
+
+library(psy)
+sphpca(ModSamData, h=0, v=0, f=0, cx=0.75, nbsphere=2, back=FALSE,method="approx", maxiter=500, output=FALSE)
+
+
+```
+
+
+
+##Summary
+When we interpret the factor scores and loadings together, the PCA revealed:
+
+1. Component 1: The latent structure of the SAM data as revealed by PCA indicated that the first component characterized good versus poor memory. In other words,when people reported having high or low abilities for one category of memory,they tended to do the same for other categories.
+
+2. People who are good at Spatial memory & Future thinking are indicated to have an overall good memory in other categories as well. 
+
+3. Component 2 is mainly composed of Spatial memory variable. People who are generally good at Spatial memory task have a poor future thinking ability as they both are orthogonal and negatively correlated. 
+
