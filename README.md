@@ -1,4 +1,4 @@
-# Data-Analysis-Projects-in-R
+# Data Analysis Research Projects in R
 
 ## Project 1 - Analysis of a research paper(Survey of Autobiographical Memory)
 1. Cleaned the existing data to differentiate between the design variables and variables needed for PCA analysis
